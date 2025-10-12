@@ -1,0 +1,30 @@
+[project]
+name = "mpasviewer"
+version = "0.1.0"
+description = "MPAS-viewer: A Python package for an efficient visualization of the Spherical Centroidal Voronoi Tessellation mesh of MPAS-Atmosphere"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "cartopy>=0.25.0",
+    "dask>=2025.9.1",
+    "earthcmap",
+    "fsspec>=2025.9.0",
+    "ipykernel>=6.30.1",
+    "matplotlib>=3.10.6",
+    "netcdf4>=1.7.2",
+    "numpy>=2.2.6",
+    "s3fs>=2025.9.0",
+    "spyder-kernels==3.0",
+    "xarray>=2025.6.1",
+    "zarr>=2.18.3",
+]
+
+[project.scripts]
+mpasviewer = "mpasviewer:main"
+
+[build-system]
+requires = ["uv_build>=0.8.19,<0.9.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+earthcmap = { git = "https://github.com/jhbravo/earthcmap.git" }
