@@ -390,6 +390,30 @@ class scvtmesh:
         
         self.arr = np.ma.dstack((lon1, lat1))
         return self.arr
+
+    def get_subset(self, ds, lon=None, lat=None):
+        """Return the processed xarray Dataset."""
+        if self.ds is None:
+            raise ValueError("Dataset not loaded. Run load_static() and add_optional_data() first.")
+        
+        # Define vertices of the rectangle (in clockwise or counter-clockwise order)
+        vertices = [
+            (min(lon), max(lat)),  # Top-left
+            (min(lon), min(lat)),  # Bottom-left
+            (max(lon), min(lat)),  # Bottom-right
+            (max(lon), max(lat)),  # Top-right
+            (min(lon), max(lat)),  # Closing point (must match the first point)
+            ]
+        p = Path(vertices)
+        
+        points = np.column_stack((self.ds['face_x'].data, self.ds['face_y'].data))
+        flags = p.contains_points(points)
+        
+        face_id = self.ds["face"][flags]
+        
+        subds = self.ds.sel(face = face_id.values)
+        
+        return subds
     
 
     def latlon2cellid(self, lat,lon):
