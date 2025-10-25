@@ -22,7 +22,7 @@ from matplotlib.collections import PolyCollection
 import cartopy.crs as ccrs
 
 ### Static variables
-from statics import variable_attrs
+from .statics import variable_attrs
 
 ### Earth Color maps
 from earthcmap import escmap
@@ -118,13 +118,17 @@ class scvtmesh:
             elif os.path.isdir(self.diag_list):
                 # print("this is to read a glob list")
                 allfls = sorted(glob(f"{self.diag_list}/diag*.nc"))
-                outgrid = xr.open_mfdataset(allfls, decode_cf=True, mask_and_scale=False, combine='by_coords')
+                # outgrid = xr.open_mfdataset(allfls, decode_cf=True, mask_and_scale=False, combine='by_coords')
+                outgrid = xr.open_mfdataset(allfls, combine='nested', concat_dim='Time', decode_cf=True, mask_and_scale=False)
             elif re.match(r"^s3://twc-graf-reforecast.*\.zarr$", self.diag_list):
                 mapper = fsspec.get_mapper(f"{self.diag_list}/", anon=True)
                 outgrid = xr.open_zarr(mapper, consolidated=True)
             else:
                 print("not found or doesn't match expected formats")
             
+            if var2map:
+                outgrid = outgrid[var2map]
+
             #########################
             # fulvrs = [x for x in outgrid.keys() if len(outgrid[x].shape) == 2 and not 'nVertices' in outgrid[x].dims]
             fulvrs = [x for x in outgrid.keys() if len(outgrid[x].shape) == 2 and 'nCells' in outgrid[x].dims]
@@ -239,13 +243,18 @@ class scvtmesh:
                 with fsspec.open(url, anon=True, mode='r') as f:
                     # lines = [line.strip() for line in f if line.strip()]
                     ini_time = [datetime.strptime(line.strip(), '%Y-%m-%d_%H.%M.%S') for line in f if line.strip()]
-                tunits = f"minutes since {frstm}"
+                frstm0 = str(ini_time[0])
+                tunits = f"minutes since {frstm0}"
                 outgrid = outgrid.sel(Time = range(len(ini_time)))
             else:
                 ## this is for local data
                 ini_time = outgrid['Time'].data
-                frstm = str(ini_time[0].astype('datetime64[s]'))
-                tunits = f"hours since {frstm}"
+                if np.issubdtype(ini_time.dtype, np.integer):
+                    ini_time = [datetime.strptime(os.path.basename(f), 'diag.%Y-%m-%d_%H.%M.%S.nc') for f in allfls]
+                    frstm0 = str(ini_time[0])
+                else:
+                    frstm0 = str(ini_time[0].astype('datetime64[s]'))
+                tunits = f"hours since {frstm0}"
             
             self.ds = self.ds.assign_coords( time = ("time", ini_time) )
             
@@ -326,24 +335,24 @@ class scvtmesh:
             rain_2 = 'rainc'
                 
         if set([rain_1, rain_2]).issubset(list(self.ds.keys())):
-            rain1 = 'rainnc_tndncy'
+            rain1 = 'rainnc_rate'
             self.ds[rain1] = self.ds[rain_1].copy()
             self.ds[rain1].values *= 0
             self.ds[rain1][1:,:].values += self.ds[rain_1][1:,:].values - self.ds[rain_1][:-1,:].values
             self.ds[rain1].attrs['long_name'] = 'Rain Rate total grid-scale precipitation'
             
-            rain2 = 'rainc_tndncy'
+            rain2 = 'rainc_rate'
             self.ds[rain2] = self.ds[rain_2].copy()
             self.ds[rain2].data *= 0
             self.ds[rain2][1:,:].data = self.ds[rain_2][1:,:].data - self.ds[rain_2][:-1,:].data
             self.ds[rain2].attrs['long_name'] = 'Rain Rate convective precipitation'
             
-            rain3 = 'rain_tndncy'
+            rain3 = 'rain_rate'
             self.ds[rain3] = self.ds[rain_2].copy()
             self.ds[rain3].data *= 0
             self.ds[rain3].data = self.ds[rain1].data + self.ds[rain2].data
             self.ds[rain3].attrs['units'] = 'mm'
-            self.ds[rain3].attrs['long_name'] = 'Rain Rate grid-scale + convective precipitation'
+            self.ds[rain3].attrs['long_name'] = 'Rain Rate (grid-scale + convective) precipitation'
 
     def load(self):
         """Return the processed xarray Dataset."""
