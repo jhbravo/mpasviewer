@@ -20,6 +20,10 @@
 You can install MPAS-Viewer directly from GitHub:
 
 ```bash
+uv add "mpasviewer @ https://github.com/jhbravo/mpasviewer.git"
+```
+
+```bash
 pip install git+https://github.com/jhbravo/mpasviewer.git
 ```
 
