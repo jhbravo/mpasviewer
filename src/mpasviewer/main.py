@@ -90,27 +90,7 @@ class scvtmesh:
             
             outgrid = grid_base.copy()
         else:
-            
             ftype = "diag"
-            
-            # Define the lists
-            # ls1 = load_variables#['rainnc', 'rainc', 'precipw', 't2m', "uzonal", 'temperature']
-            if self.load_variables != None:
-                # This list contains name of variables with height levels
-                lvls_vrs = ['relhum', 'dewpoint', 'temperature', 'height', 'uzonal', 'umeridional', 'w']
-                
-                # Find matching elements in both lists
-                matching_items = list(set(load_variables) & set(lvls_vrs))
-                
-                # Remove matching elements from the original list
-                updated_ls1 = [item for item in load_variables if item not in matching_items]
-                
-                # Create upgraded variables with height levels
-                height_levels = ["50hPa", "100hPa", "200hPa", "250hPa", "500hPa", "700hPa", "850hPa", "925hPa"]
-                upgraded_items = [f"{var}_{h}" for var in matching_items for h in height_levels]
-                
-                # Combine the updated list with upgraded variables
-                var2map = updated_ls1 + upgraded_items
             
             if os.path.isfile(self.diag_list) and re.match(r".*diag\..*\.nc$", self.diag_list):
                 # print("read a single")
@@ -126,6 +106,23 @@ class scvtmesh:
             else:
                 print("not found or doesn't match expected formats")
             
+            # Define the lists
+            if self.load_variables != None:
+                # This list contains name of variables with height levels at hPa
+                lvls_vrs = ['relhum', 'dewpoint', 'temperature', 'height', 'uzonal', 'umeridional', 'w']
+                
+                # Find matching elements in both lists
+                matching_items = list(set(self.load_variables) & set(lvls_vrs))
+
+                pattern = re.compile(rf"^(?:{'|'.join(matching_items)})_\d+hPa$")
+
+                upgraded_items = [v for v in outgrid.keys() if pattern.match(v)]
+                
+                # # Remove matching elements from the original list
+                updated_ls1 = [item for item in load_variables if item not in matching_items]
+                
+                var2map = updated_ls1 + upgraded_items
+                
             if var2map:
                 outgrid = outgrid[var2map]
 
@@ -168,11 +165,10 @@ class scvtmesh:
         tstr = f'{frstm:%Y-%m-%d %H:%M:%S}Z'
         
         self.ds.attrs = {'Conventions':'CF-1.12 UGRID-1.0',
-                         'model_name': 'mpas',
-                         'core_name': 'atmosphere',
-                         'source': 'MPAS',
+                         'model_name': 'MPAS',
+                         'core_name': 'Atmosphere',
+                         'source': 'MPAS-A',
                          'source_software': 'MPAS-viewer',
-                         'title':'por cambiar!!',
                          'date_created': tstr,
                          'date_modified': tstr,}
         
