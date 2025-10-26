@@ -101,7 +101,7 @@ class scvtmesh:
                 # outgrid = xr.open_mfdataset(allfls, decode_cf=True, mask_and_scale=False, combine='by_coords')
                 outgrid = xr.open_mfdataset(allfls, combine='nested', concat_dim='Time', decode_cf=True, mask_and_scale=False)
             elif re.match(r"^s3://twc-graf-reforecast.*\.zarr/?$", self.diag_list):
-                mapper = fsspec.get_mapper(f"{self.diag_list}/", anon=True)
+                mapper = fsspec.get_mapper(f"{self.diag_list}", anon=True)
                 outgrid = xr.open_zarr(mapper, consolidated=True)
             else:
                 print("not found or doesn't match expected formats")
