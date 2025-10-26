@@ -349,6 +349,21 @@ class scvtmesh:
             self.ds[rain3].data = self.ds[rain1].data + self.ds[rain2].data
             self.ds[rain3].attrs['units'] = 'mm'
             self.ds[rain3].attrs['long_name'] = 'Rain Rate (grid-scale + convective) precipitation'
+    
+
+    def get_graf_s3(dtime):
+        stime = f"{dtime:%Y%m%d}"[:-1]
+        fs = fsspec.filesystem("s3", anon=True)
+        
+        pattern = f"s3://twc-graf-reforecast/{stime}*/"
+        dirs = fs.glob(pattern)
+        
+        def extract_datetime(path):
+            ts = path.split('/')[-1].split('_')[0]
+            return datetime.strptime(ts, "%Y%m%d%H")
+        
+        return min(dirs, key=lambda x: abs(extract_datetime(x) - dtime))
+
 
     def load(self):
         """Return the processed xarray Dataset."""
@@ -356,6 +371,7 @@ class scvtmesh:
             raise ValueError("Dataset not loaded. Run load_static() and add_optional_data() first.")
         
         return self.ds
+
 
     def crop(self, ds, lon=None, lat=None):
         """Return the processed xarray Dataset."""
@@ -390,6 +406,7 @@ class scvtmesh:
         
         self.arr = np.ma.dstack((lon1, lat1))
         return self.arr
+
 
     def get_subset(self, ds, lon=None, lat=None):
         """Return the processed xarray Dataset."""
@@ -471,6 +488,7 @@ class scvtmesh:
             cmap_name = "laoc"
             
         return cmap_name
+
 
 ###################
     def show(self, ds, var_name, time_index=None, crs=None,figsize=None):
