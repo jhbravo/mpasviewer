@@ -92,6 +92,9 @@ class scvtmesh:
         else:
             ftype = "diag"
             
+            # if os.path.isfile(self.diag_list):
+            #     outgrid = xr.open_dataset(self.diag_list)
+            #     print('This is for Ocean')
             if os.path.isfile(self.diag_list) and re.match(r".*diag\..*\.nc$", self.diag_list):
                 # print("read a single")
                 outgrid = xr.open_dataset(self.diag_list)
@@ -105,15 +108,18 @@ class scvtmesh:
                 outgrid = xr.open_zarr(mapper, consolidated=True)
             else:
                 print("not found or doesn't match expected formats")
-            
+
+            if self.load_variables == None:
+                load_variables = [x for x in outgrid.keys() if len(outgrid[x].shape) == 2 and 'nCells' in outgrid[x].dims]
+                
             # Define the lists
-            if self.load_variables != None:
+            if load_variables != None:                
                 # This list contains name of variables with height levels at hPa
                 lvls_vrs = ['relhum', 'dewpoint', 'temperature', 'height', 'uzonal', 'umeridional', 'w']
                 
                 # Find matching elements in both lists
-                matching_items = list(set(self.load_variables) & set(lvls_vrs))
-
+                matching_items = list(set(load_variables) & set(lvls_vrs))
+                
                 pattern = re.compile(rf"^(?:{'|'.join(matching_items)})_\d+hPa$")
 
                 upgraded_items = [v for v in outgrid.keys() if pattern.match(v)]
@@ -121,11 +127,11 @@ class scvtmesh:
                 # # Remove matching elements from the original list
                 updated_ls1 = [item for item in load_variables if item not in matching_items]
                 
-                var2map = updated_ls1 + upgraded_items
+                var2map = updated_ls1 + upgraded_items + ['xtime']
                 
             if var2map:
                 outgrid = outgrid[var2map]
-
+            
             #########################
             # fulvrs = [x for x in outgrid.keys() if len(outgrid[x].shape) == 2 and not 'nVertices' in outgrid[x].dims]
             fulvrs = [x for x in outgrid.keys() if len(outgrid[x].shape) == 2 and 'nCells' in outgrid[x].dims]
@@ -140,7 +146,7 @@ class scvtmesh:
             
             # Create the dictionary
             grpvrs = {'single': single_vars, 'levels': self.level_vars}
-            # print(grpvrs)
+            
             if len(grpvrs['levels']) != 0:
                 ###########################
                 for base_var in grpvrs['levels']:
@@ -246,7 +252,11 @@ class scvtmesh:
                 ## this is for local data
                 ini_time = outgrid['Time'].data
                 if np.issubdtype(ini_time.dtype, np.integer):
-                    ini_time = [datetime.strptime(os.path.basename(f), 'diag.%Y-%m-%d_%H.%M.%S.nc') for f in allfls]
+                    try:
+                        # ini_time = [datetime.strptime(os.path.basename(f), 'diag.%Y-%m-%d_%H.%M.%S.nc') for f in allfls]
+                        ini_time = [datetime.strptime(x.values.item().decode().strip(), '%Y-%m-%d_%H:%M:%S') for x in outgrid['xtime']]
+                    except:
+                        ini_time = [ini_time[0].astype('datetime64[s]')]
                     frstm0 = str(ini_time[0])
                 else:
                     frstm0 = str(ini_time[0].astype('datetime64[s]'))
@@ -313,6 +323,7 @@ class scvtmesh:
             )
             
             self.ds[vn].attrs.update(vattrs)
+            self.ds[vn].attrs.update({"var_name": vn})
             self.ds[vn].attrs.update({"grid_mapping": "projected_coordinate_system"})
 
         print(f"Loaded grid_file dataset: {self.grid_file_path}")
@@ -335,21 +346,45 @@ class scvtmesh:
             self.ds[rain1] = self.ds[rain_1].copy()
             self.ds[rain1].values *= 0
             self.ds[rain1][1:,:].values += self.ds[rain_1][1:,:].values - self.ds[rain_1][:-1,:].values
-            self.ds[rain1].attrs['long_name'] = 'Rain Rate total grid-scale precipitation'
+            self.ds[rain1].attrs['long_name'] = 'Rain Rate grid-scale'
             
             rain2 = 'rainc_rate'
             self.ds[rain2] = self.ds[rain_2].copy()
             self.ds[rain2].data *= 0
             self.ds[rain2][1:,:].data = self.ds[rain_2][1:,:].data - self.ds[rain_2][:-1,:].data
-            self.ds[rain2].attrs['long_name'] = 'Rain Rate convective precipitation'
+            self.ds[rain2].attrs['long_name'] = 'Rain Rate convective'
             
             rain3 = 'rain_rate'
             self.ds[rain3] = self.ds[rain_2].copy()
             self.ds[rain3].data *= 0
             self.ds[rain3].data = self.ds[rain1].data + self.ds[rain2].data
             self.ds[rain3].attrs['units'] = 'mm'
-            self.ds[rain3].attrs['long_name'] = 'Rain Rate (grid-scale + convective) precipitation'
+            self.ds[rain3].attrs['long_name'] = 'Rain Rate (grid-scale + convective)'
     
+    def wind_sd(self):
+        """Return the processed Rain Rate Calculation."""
+        if self.ds is None:
+            raise ValueError("Dataset not loaded. Run load_static() and add_optional_data() first.")
+
+        wind_1 = 'u10'
+        wind_2 = 'v10'
+                
+        if set([wind_1, wind_2]).issubset(list(self.ds.keys())):
+            wind1 = 'wind_spd'
+            self.ds[wind1] = self.ds[wind_1].copy()
+
+            wind2 = 'wind_dir'
+            self.ds[wind2] = self.ds[wind_2].copy()
+
+            self.ds[wind1].values *= 0
+            self.ds[wind1].values += np.sqrt(self.ds[wind_1].values**2 + self.ds[wind_2].values**2)
+            self.ds[wind1].attrs['long_name'] = 'Wind Speed from u and v'
+            self.ds[wind1].attrs['var_name'] = wind1
+            
+            self.ds[wind2].data *= 0
+            self.ds[wind2].data = (270 - np.degrees(np.arctan2(self.ds[wind_1].values, self.ds[wind_2].values))) % 360
+            self.ds[wind2].attrs['long_name'] = 'Wind Direction from u and v'
+            self.ds[wind2].attrs['var_name'] = wind2
 
     def get_graf_s3(dtime):
         stime = f"{dtime:%Y%m%d}"[:-1]
@@ -467,16 +502,19 @@ class scvtmesh:
         ### output color bars
         if cmap_name in ['t2m']:
             cmap_name = "temp_ecmwf"
-        if cmap_name in ['ssh']:
+        elif cmap_name in ['ssh']:
             cmap_name = "noaa_sst"          
-        elif cmap_name in ["rain_tndncy",'rainnc', 'rainc', 'precipw',] or "rain" in cmap_name:
+        # elif cmap_name in ["rain_tndncy",'rainnc', 'rainc', 'precipw',] or "rain" in cmap_name:
+        elif cmap_name in ['precipw',] or "rain" in cmap_name or "prec_acc" in cmap_name:
             cmap_name = "nwps_qpe"
         elif cmap_name in ['apcp_bucket','conv_bucket','rain_bucket']:
             cmap_name = "mrms_prec"
         elif cmap_name in ['olrtoa']:
             cmap_name = "cira_ir108"
-        elif cmap_name in ["refl10cm_max"]:
+        elif "refl10cm" in cmap_name:
             cmap_name = "mrms_cref"
+        elif "wind" in cmap_name:
+            cmap_name = "wind_cira"
         ### static color bars
         elif cmap_name in ['ter']:
             cmap_name = "ter"
@@ -486,12 +524,12 @@ class scvtmesh:
             cmap_name = "lalc"
         elif cmap_name in ['landmask']:
             cmap_name = "laoc"
-            
+        else:
+            cmap_name = 'None'
+
         return cmap_name
 
-
-###################
-    def show(self, ds, var_name, time_index=None, crs=None,figsize=None):
+    def show_org(self, ds, var_name, time_index=None, crs=None, figsize=None):
         """
         Plot a PolyCollection for a given variable at a specific time index.
         :param var_name: Name of the variable to plot.
@@ -502,7 +540,6 @@ class scvtmesh:
         
         if var_name not in ds.keys():
             raise ValueError(f"Variable '{var_name}' not found in dataset.")
-
             
         dvar = ds[var_name]
         ## #######
@@ -576,11 +613,11 @@ class scvtmesh:
         if var_name in ['indexToCellID','nEdgesOnCell','areaCell','meshDensity','cellQuality','gridSpacing']:
             cmap = colormaps['Spectral'].resampled(24)
         else:
-            var_name = self.cbar_adjust(var_name)
+            cmap_name = self.cbar_adjust(var_name)
             if "units" in dvar.attrs.keys():
-                cmap, norm = escmap(var_name, units = dvar.attrs['units'])
+                cmap, norm = escmap(cmap_name, units = dvar.attrs['units'])
             else:
-                cmap, norm = escmap(var_name)
+                cmap, norm = escmap(cmap_name)
         
         coll = PolyCollection(arr2)
         ### Arrray values
@@ -606,6 +643,171 @@ class scvtmesh:
             ax.set_global()
         else:            
             ax.set_extent([lon_min, lon_max, lat_min, lat_max])
+            
+        gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True, linewidth=0.7, color='gray', alpha=0.5, linestyle='--', dms=True)
+        gl.top_labels = False
+        gl.right_labels = False
+    
+        # --- Color Bar ---
+        pos = ax.get_position()
+        # Adding colorbar aligned with the map's height
+        cbar_width = 0.02
+        cbar_padding = 0.01
+        cbar_ax = fig.add_axes([
+            pos.x1 + cbar_padding, # left
+            pos.y0,                # bottom
+            cbar_width,            # width
+            pos.height             # height (match the map!)
+        ])
+        
+        fig.colorbar(coll, cax=cbar_ax, label=var_name)
+
+###############################3
+    def get_struck(self, ds):
+        ndt1 = np.ma.masked_object(ds["face_nodes"].fillna(-1), -1).astype('int')
+        
+        lon1 = np.ma.take(ds['node_x'].data, ndt1)
+        lat1 = np.ma.take(ds['node_y'].data, ndt1)
+        
+        arr = np.ma.dstack((lon1, lat1))
+        return arr
+
+    def get_limits(self, arr):
+        return np.ma.min(arr[:,:,0]), np.ma.max(arr[:,:,0]), np.ma.min(arr[:,:,1]), np.ma.max(arr[:,:,1])
+
+    def collection_base(self, ds, crs=None, figsize=None):
+        """
+        Plot a PolyCollection for a given variable at a specific time index.
+        :param var_name: Name of the variable to plot.
+        :param time_index: Time index to visualize (default is 0).
+        """
+        arr = self.get_struck(ds)
+        
+        #######
+        lon_min, lon_max, lat_min, lat_max = self.get_limits(arr)
+        if (lon_max >= 179.5 and lon_min <= -179.5):
+            clon = 0
+            clat = 0
+        else:
+            clon = (lon_min + lon_max) / 2
+            clat = (lat_min + lat_max) / 2
+        
+        if crs is None:
+            crs = ccrs.Orthographic(central_longitude=clon, central_latitude=clat)
+            # print(clon,clat)
+            # print(lon_min, lon_max, lat_min, lat_max)
+        
+        #################
+        if figsize is None:
+            figsize=(6.4, 4.8) ## this is the default size
+
+        fig, ax = plt.subplots(figsize=figsize, subplot_kw={'projection': crs})
+        plt.close(fig)
+        arr_nan = np.where(arr.mask, np.nan, arr.data)
+        
+        projected = ax.projection.transform_points(ccrs.PlateCarree(), arr_nan[:,:,0], arr_nan[:,:,1])
+        
+        arr2 = np.ma.array(projected[:,:,:2], mask=arr.mask, copy=False)
+        
+        crs_name = type(crs).__name__
+        # print(crs_name)
+        if crs_name not in ['Orthographic','Geostationary'] and (lon_max >= 179.5 and lon_min <= -179.5):
+            ################### This part is to identify the polygons at edges
+            row_max = arr2[:,:,0].max(axis=1)  # Max per row
+            row_min = arr2[:,:,0].min(axis=1)  # Min per row
+            row_dff = row_max - row_min
+            
+            digit_counts = np.floor(np.log10(row_dff.data)).astype(int) + 1
+            mask1 = (digit_counts>=digit_counts.max())
+            
+            idx = np.unique(np.where(mask1))
+            
+            arr2[idx] = np.nan
+            ###################
+        coll = PolyCollection(arr2)
+        coll.limits = [lon_min, lon_max, lat_min, lat_max]
+        coll.crs = crs
+
+        return coll
+        
+    def collection(self, ds, var_name, time_index=None, crs=None, figsize=None):
+        """
+        Plot a PolyCollection for a given variable at a specific time index.
+        :param var_name: Name of the variable to plot.
+        :param time_index: Time index to visualize (default is 0).
+        """
+        # print(var_name, time_index, crs, figsize)
+        coll = self.collection_base(ds, crs=crs, figsize=figsize)
+        
+        dvar = ds[var_name]
+        if 'time' in dvar.coords:
+            num_steps = len(dvar['time'])  # Number of time steps
+        else:
+            num_steps = 0
+            
+        if num_steps == 0:
+            vtme = ""
+            values = dvar.values.flatten()
+        else:
+            if time_index is None:
+                time_index = 0 # str(ds['time'].data.min().astype('datetime64[s]'))
+
+            if isinstance(time_index, str):
+                vtme = str(dvar.sel(time=time_index)['time'].data.astype('datetime64[m]'))
+                values = dvar.sel(time=time_index).values.flatten()
+            else:
+                vtme = str(dvar.isel(time=time_index)['time'].data.astype('datetime64[m]'))
+                values = dvar.isel(time=time_index).values.flatten()
+        ############################################ 
+        var_name = dvar.attrs['var_name']
+        vnme = dvar.attrs.get('long_name', var_name)
+        
+        cmap_name = self.cbar_adjust(var_name)
+        # print(cmap_name)
+        # cmap_name = 'None'
+        if cmap_name == 'None':
+            # cmap = colormaps['Spectral'].resampled(24)
+            cmap = colormaps['Spectral'].resampled(24)
+        else:
+            if "units" in dvar.attrs.keys():
+                cmap, norm = escmap(cmap_name, units = dvar.attrs['units'])
+            else:
+                cmap, norm = escmap(cmap_name)
+        
+        ### Arrray values
+        coll.set_array(values)
+        ### Colors 
+        coll.set_cmap(cmap)
+        coll.set_edgecolor('face')
+        if 'norm' in locals():
+            coll.set_norm(norm)
+        coll.vname = vnme
+        coll.stime = vtme
+        return coll
+
+
+    def show(self, ds, var_name, time_index=None, crs=None, figsize=None):
+        coll = self.collection(ds, var_name, time_index=time_index, crs=crs, figsize=figsize)
+        # coll = collection(ds, var_name, time_index=time_index, crs=crs, figsize=figsize)
+        # --- Create Figure & Axis ---
+        fig, ax = plt.subplots(figsize=figsize, subplot_kw={'projection': coll.crs})
+        ax.add_collection(coll)
+        ax.autoscale_view()
+        
+        ax.set_xlabel("Longitude")
+        ax.set_ylabel("Latitude")
+        # ax.set_title(coll.vname+f"\n{coll.stime}")
+        ax.set_title(f"{coll.vname}\n",   loc='left')
+        # ax.set_title("Title Center", loc='center')
+        ax.set_title(f"\n{coll.stime}",  loc='right')
+    
+        # --- limits ---
+        ax.coastlines(linewidth=0.5)
+        if (coll.limits[1] >= 179.5 and coll.limits[0] <= -179.5): #(lon_max >= 179.5 and lon_min <= -179.5):
+            ax.set_global()
+        else:
+            ax.set_extent(coll.limits)
+            # ax.set_extent([lon_min, lon_max, lat_min, lat_max])
             
         gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True, linewidth=0.7, color='gray', alpha=0.5, linestyle='--', dms=True)
         gl.top_labels = False

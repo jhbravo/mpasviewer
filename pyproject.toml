@@ -5,6 +5,7 @@ description = "MPAS-viewer: A Python package for an efficient visualization of t
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "bokeh>=3.8.1",
     "cartopy>=0.25.0",
     "dask>=2025.9.1",
     "earthcmap",
@@ -14,6 +15,7 @@ dependencies = [
     "netcdf4>=1.7.2",
     "numpy>=2.2.6",
     "s3fs>=2025.9.0",
+    "scipy>=1.15.3",
     "spyder-kernels==3.0",
     "xarray>=2025.6.1",
     "zarr>=2.18.3",
