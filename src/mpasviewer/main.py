@@ -16,7 +16,7 @@ import xarray as xr
 
 import fsspec
 
-from matplotlib import colormaps
+from matplotlib import colormaps, colors
 import matplotlib.pyplot as plt
 from matplotlib.collections import PolyCollection
 import cartopy.crs as ccrs
@@ -25,7 +25,7 @@ import cartopy.crs as ccrs
 from .statics import variable_attrs
 
 ### Earth Color maps
-from earthcmap import escmap
+# from earthcmap import escmap
 
 class scvtmesh:
     def __init__(self, grid_file, diag_list=None):
@@ -91,11 +91,8 @@ class scvtmesh:
             outgrid = grid_base.copy()
         else:
             ftype = "diag"
-            
-            # if os.path.isfile(self.diag_list):
-            #     outgrid = xr.open_dataset(self.diag_list)
-            #     print('This is for Ocean')
-            if os.path.isfile(self.diag_list) and re.match(r".*diag\..*\.nc$", self.diag_list):
+            # if os.path.isfile(self.diag_list) and re.match(r".*diag\..*\.nc$", self.diag_list):
+            if os.path.isfile(self.diag_list) and re.match(r".*(diag|mpasout)\..*\.nc$", self.diag_list):
                 # print("read a single")
                 outgrid = xr.open_dataset(self.diag_list)
             elif os.path.isdir(self.diag_list):
@@ -106,11 +103,16 @@ class scvtmesh:
             elif re.match(r"^s3://twc-graf-reforecast.*\.zarr/?$", self.diag_list):
                 mapper = fsspec.get_mapper(f"{self.diag_list}", anon=True)
                 outgrid = xr.open_zarr(mapper, consolidated=True)
+            elif os.path.isfile(self.diag_list) and self.diag_list.endswith(".nc"):
+                ### OCEAN
+                outgrid = xr.open_dataset(self.diag_list)
+                # print('This is for Ocean or ICE')
             else:
                 print("not found or doesn't match expected formats")
 
             if self.load_variables == None:
-                load_variables = [x for x in outgrid.keys() if len(outgrid[x].shape) == 2 and 'nCells' in outgrid[x].dims]
+                # load_variables = [x for x in outgrid.keys() if len(outgrid[x].shape) == 2 and 'nCells' in outgrid[x].dims]
+                load_variables = [x for x in outgrid.keys() if 'nCells' in outgrid[x].dims]
                 
             # Define the lists
             if load_variables != None:                
@@ -121,48 +123,68 @@ class scvtmesh:
                 matching_items = list(set(load_variables) & set(lvls_vrs))
                 
                 pattern = re.compile(rf"^(?:{'|'.join(matching_items)})_\d+hPa$")
-
+                
                 upgraded_items = [v for v in outgrid.keys() if pattern.match(v)]
                 
                 # # Remove matching elements from the original list
                 updated_ls1 = [item for item in load_variables if item not in matching_items]
                 
-                var2map = updated_ls1 + upgraded_items + ['xtime']
+                var2map = updated_ls1 + upgraded_items
                 
             if var2map:
-                outgrid = outgrid[var2map]
+                try:
+                    outgrid = outgrid[var2map + ['xtime']]
+                except:
+                    outgrid = outgrid[var2map]
             
             #########################
             # fulvrs = [x for x in outgrid.keys() if len(outgrid[x].shape) == 2 and not 'nVertices' in outgrid[x].dims]
-            fulvrs = [x for x in outgrid.keys() if len(outgrid[x].shape) == 2 and 'nCells' in outgrid[x].dims]
-            
+            # fulvrs = [x for x in outgrid.keys() if len(outgrid[x].shape) == 2 and 'nCells' in outgrid[x].dims]
+            fulvrs = [x for x in outgrid.keys() if 'nCells' in outgrid[x].dims]
+            # print(fulvrs)
             # Extract levels from variables
-            str_levels = sorted(set(re.findall(r'\d+hPa', " ".join(fulvrs))), key=lambda x: int(x[:-3]))
+            # str_levels = sorted(set(re.findall(r'\d+hPa', " ".join(fulvrs))), key=lambda x: int(x[:-3]))
+            str_levels = sorted(set(re.findall(r'\d+hPa', " ".join(fulvrs))), key=lambda x: int(x[:-3]),reverse=True)
+            # print(str_levels)
             num_levels = [int(re.search(r'\d+', level).group()) for level in str_levels]
+            # print(num_levels)
             
             # Separate variables into groups
-            single_vars = [var for var in fulvrs if not re.search(r'\d+hPa', var) and var not in ['initial_time', 'xtime',]]
+            single_vars = [var for var in fulvrs if not re.search(r'\d+hPa', var) and var not in ['initial_time', 'xtime',] and outgrid[var].dims == ('Time', 'nCells')]
+            level_vars0 = [var for var in fulvrs if (len(outgrid[var].shape) > 1) and any("level" in k.lower() for k in outgrid[var].dims) and len(outgrid[var].shape) >= 3]
             self.level_vars = sorted(set(var.split("_")[0] for var in fulvrs if re.search(r'\d+hPa', var)))
             
             # Create the dictionary
-            grpvrs = {'single': single_vars, 'levels': self.level_vars}
-            
+            # grpvrs = {'single': single_vars, 'levels': self.level_vars}
+            grpvrs = {'single': single_vars, 'levels': self.level_vars, 'levels0': level_vars0,}
+            # print(grpvrs)
             if len(grpvrs['levels']) != 0:
                 ###########################
                 for base_var in grpvrs['levels']:
                     # base_var = grpvrs['levels'][0]
                     lev_vars = [f'{base_var}_{n}' for n in str_levels]
-                    outgrid[base_var] = xr.concat([outgrid[var] for var in lev_vars], dim=xr.DataArray(num_levels, dims=['pres'], name='pres'))
+                    outgrid[base_var] = xr.concat([outgrid[var] for var in lev_vars], dim=xr.DataArray(num_levels, dims=["nPresLevels"], name="nPresLevels"))
                     # outgrid[base_var] = outgrid[base_var].assign_coords(levels=num_levels)
                     fixdim = outgrid[base_var].dims[2]##fixed dimension it can be 'nCells' or 'nVertices'
-                    outgrid[base_var] = outgrid[base_var].transpose("Time", "pres", fixdim)
+                    outgrid[base_var] = outgrid[base_var].transpose("Time", "nPresLevels", fixdim)
+                    
                     s = outgrid[base_var].attrs['long_name']
                     outgrid[base_var].attrs['long_name'] = re.sub(r'to \d+ hPa', '', s).strip()
                 
-                outgrid['pres'].attrs = {'standard_name':'air_pressure',
-                                         'long_name':'pressure coordinate of projection',
-                                         'units':'hPa',}
-            var2map = grpvrs['single'] + grpvrs['levels']
+                outgrid["nPresLevels"].attrs = {'standard_name':'air_pressure',
+                                                'long_name':'pressure coordinate of projection',
+                                                'units':'hPa',}
+            # print(grpvrs['levels0'])
+            if len(grpvrs['levels0']) != 0:
+                ###########################                
+                for base_var0 in grpvrs['levels0']:
+                    print(base_var0)
+                    fixdim1 = outgrid[base_var0].dims[1]
+                    fixdim2 = outgrid[base_var0].dims[2]
+                    outgrid[base_var0] = outgrid[base_var0].transpose("Time", fixdim2, fixdim1)
+                    
+            var2map = grpvrs['single'] + grpvrs['levels'] + grpvrs['levels0']
+            # print(var2map)
         
         ############################## Creating the correct dataset
         self.ds = xr.Dataset()
@@ -269,15 +291,15 @@ class scvtmesh:
             
             self.ds['time'].encoding['units'] = tunits
             
-        #### Set pressure coordinate
-        if "pres" in outgrid.coords:
-            self.ds = self.ds.assign_coords(
-                   pres = ("pres", num_levels)
-                   )        
-            self.ds['pres'].attrs = {'standard_name':'air_pressure',
-                                'long_name':'pressure coordinate of projection',
-                                'units':'hPa',}
-                
+        #### Set the new pressure coordinate and other levels
+        for vlevel in [d for d in outgrid.dims if "evels" in d]:
+            # vlevel = "nPresLevels"
+            if vlevel in outgrid.dims:
+                num_levels0 = outgrid[vlevel].data
+                # self.ds = self.ds.assign_coords(nPresLevels = ("nPresLevels", num_levels))
+                self.ds = self.ds.assign_coords({vlevel: (vlevel, num_levels0)})
+                self.ds[vlevel].attrs = outgrid[vlevel].attrs
+            
         self.ds["face_nodes"] = xr.DataArray(
             data = vertOnCell,
             coords = {
@@ -301,8 +323,13 @@ class scvtmesh:
                 fdims = ["face"]
             elif ftype in ["diag"]:
                 fdims = ["time","face"]
-            if ftype in ["diag"] and "pres" in outgrid[vn].coords:
-                fdims = ["time","pres","face"]
+            # if ftype in ["diag"] and "nPresLevels" in outgrid[vn].coords:
+            #     fdims = ["time","nPresLevels","face"]
+            for vlevel in [d for d in outgrid.dims if "evels" in d]:
+                # print(vlevel)
+                if ftype in ["diag"] and vlevel in outgrid[vn].dims:
+                    fdims = ["time",vlevel,"face"]
+            # print(vn, fdims)
 
             if vn in variable_attrs.keys():
                 vattrs = variable_attrs.get(vn, {})
@@ -321,7 +348,7 @@ class scvtmesh:
                     "location": "face",
                 }
             )
-            
+                      
             self.ds[vn].attrs.update(vattrs)
             self.ds[vn].attrs.update({"var_name": vn})
             self.ds[vn].attrs.update({"grid_mapping": "projected_coordinate_system"})
@@ -500,7 +527,7 @@ class scvtmesh:
 
     def cbar_adjust(self, cmap_name):
         ### output color bars
-        if cmap_name in ['t2m']:
+        if cmap_name in ['t2m','theta']:#,'temperature']:
             cmap_name = "temp_ecmwf"
         elif cmap_name in ['ssh']:
             cmap_name = "noaa_sst"          
@@ -513,7 +540,7 @@ class scvtmesh:
             cmap_name = "cira_ir108"
         elif "refl10cm" in cmap_name:
             cmap_name = "mrms_cref"
-        elif "wind" in cmap_name:
+        elif "wind" in cmap_name:# or cmap_name in ["umeridional", "uzonal",] :
             cmap_name = "wind_cira"
         ### static color bars
         elif cmap_name in ['ter']:
@@ -525,7 +552,7 @@ class scvtmesh:
         elif cmap_name in ['landmask']:
             cmap_name = "laoc"
         else:
-            cmap_name = 'None'
+            cmap_name = None
 
         return cmap_name
 
@@ -730,7 +757,7 @@ class scvtmesh:
 
         return coll
         
-    def collection(self, ds, var_name, time_index=None, crs=None, figsize=None):
+    def collection(self, ds, var_name, level=None, time_index=None, crs=None, figsize=None, cmap=None, norm=None, vmin=None, vmax=None):
         """
         Plot a PolyCollection for a given variable at a specific time index.
         :param var_name: Name of the variable to plot.
@@ -740,54 +767,91 @@ class scvtmesh:
         coll = self.collection_base(ds, crs=crs, figsize=figsize)
         
         dvar = ds[var_name]
+        
         if 'time' in dvar.coords:
             num_steps = len(dvar['time'])  # Number of time steps
         else:
             num_steps = 0
-            
+        
         if num_steps == 0:
             vtme = ""
-            values = dvar.values.flatten()
         else:
             if time_index is None:
-                time_index = 0 # str(ds['time'].data.min().astype('datetime64[s]'))
-
+                time_index = 0
+            
+            ### This is for Time
             if isinstance(time_index, str):
-                vtme = str(dvar.sel(time=time_index)['time'].data.astype('datetime64[m]'))
-                values = dvar.sel(time=time_index).values.flatten()
+                dvar = dvar.sel({"time": time_index})
             else:
-                vtme = str(dvar.isel(time=time_index)['time'].data.astype('datetime64[m]'))
-                values = dvar.isel(time=time_index).values.flatten()
+                dvar = dvar.isel({"time": time_index})
+            
+            ### This is for Levels
+            if level is not None:
+                vlevel = [d for d in dvar.dims if "evels" in d][0]
+                dvar = dvar.sel({vlevel: level})
+            
+            vtme = str(dvar['time'].data.astype('datetime64[m]'))
+        
+        values = dvar.values.flatten()
         ############################################ 
         var_name = dvar.attrs['var_name']
         vnme = dvar.attrs.get('long_name', var_name)
-        
-        cmap_name = self.cbar_adjust(var_name)
-        # print(cmap_name)
-        # cmap_name = 'None'
-        if cmap_name == 'None':
-            # cmap = colormaps['Spectral'].resampled(24)
-            cmap = colormaps['Spectral'].resampled(24)
-        else:
-            if "units" in dvar.attrs.keys():
-                cmap, norm = escmap(cmap_name, units = dvar.attrs['units'])
+            
+        # cmap_name = self.cbar_adjust(var_name)
+        # if cmap_name is None and cmap is None:
+        #     cmap_name = "Spectral"
+        #     cmap = colormaps[cmap_name]
+        # if (cmap_name is None or isinstance(cmap_name, str)) and isinstance(cmap, str):
+        #     if cmap in colormaps:
+        #         cmap_name = cmap
+        #     else:
+        #         cmap_name = "magma"
+        #     cmap = colormaps[cmap_name]
+        # if (cmap_name is None or isinstance(cmap_name, str)) and isinstance(cmap, colors.Colormap):
+        #     cmap = cmap
+        # if cmap_name is not None and cmap is None:
+        #     if "units" in dvar.attrs.keys():
+        #         cmap, norm = escmap(cmap_name, units = dvar.attrs['units'])
+        #     else:
+        #         cmap, norm = escmap(cmap_name)
+
+        if cmap is None:
+            cmap_name = "Spectral"
+            cmap = colormaps[cmap_name]
+        if isinstance(cmap, str):
+            if cmap in colormaps:
+                cmap_name = cmap
             else:
-                cmap, norm = escmap(cmap_name)
+                cmap_name = "magma"
+            cmap = colormaps[cmap_name]
+        if isinstance(cmap, colors.Colormap):
+            cmap = cmap
         
+        if isinstance(norm, colors.Normalize):
+            norm = norm
+            
+        if norm is None:
+            if vmin is None:
+                vmin = values.min()
+            if vmax is None:
+                vmax = values.max()
+            norm = colors.Normalize(vmin=vmin, vmax=vmax)
+
         ### Arrray values
         coll.set_array(values)
         ### Colors 
         coll.set_cmap(cmap)
         coll.set_edgecolor('face')
-        if 'norm' in locals():
-            coll.set_norm(norm)
+        coll.set_norm(norm)
+        # if 'norm' in locals():
+        #     coll.set_norm(norm)
         coll.vname = vnme
         coll.stime = vtme
         return coll
 
 
-    def show(self, ds, var_name, time_index=None, crs=None, figsize=None):
-        coll = self.collection(ds, var_name, time_index=time_index, crs=crs, figsize=figsize)
+    def show(self, ds, var_name, level=None, time_index=None, crs=None, figsize=None, cmap=None, norm=None, vmin=None, vmax=None):
+        coll = self.collection(ds, var_name, level=level, time_index=time_index, crs=crs, figsize=figsize, cmap=cmap, norm=norm, vmin=vmin, vmax=vmax)
         # coll = collection(ds, var_name, time_index=time_index, crs=crs, figsize=figsize)
         # --- Create Figure & Axis ---
         fig, ax = plt.subplots(figsize=figsize, subplot_kw={'projection': coll.crs})
@@ -796,17 +860,15 @@ class scvtmesh:
         
         ax.set_xlabel("Longitude")
         ax.set_ylabel("Latitude")
-        # ax.set_title(coll.vname+f"\n{coll.stime}")
-        ax.set_title(f"{coll.vname}\n",   loc='left')
-        # ax.set_title("Title Center", loc='center')
-        ax.set_title(f"\n{coll.stime}",  loc='right')
+        ax.set_title(f"{coll.vname}\n", loc='left')
+        ax.set_title(f"\n{coll.stime}", loc='right')
     
         # --- limits ---
         ax.coastlines(linewidth=0.5)
         if (coll.limits[1] >= 179.5 and coll.limits[0] <= -179.5): #(lon_max >= 179.5 and lon_min <= -179.5):
             ax.set_global()
         else:
-            ax.set_extent(coll.limits)
+            ax.set_extent(coll.limits, crs=ccrs.PlateCarree())
             # ax.set_extent([lon_min, lon_max, lat_min, lat_max])
             
         gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True, linewidth=0.7, color='gray', alpha=0.5, linestyle='--', dms=True)
