@@ -178,7 +178,7 @@ class scvtmesh:
             if len(grpvrs['levels0']) != 0:
                 ###########################                
                 for base_var0 in grpvrs['levels0']:
-                    print(base_var0)
+                    # print(base_var0)
                     fixdim1 = outgrid[base_var0].dims[1]
                     fixdim2 = outgrid[base_var0].dims[2]
                     outgrid[base_var0] = outgrid[base_var0].transpose("Time", fixdim2, fixdim1)
