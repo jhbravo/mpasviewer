@@ -760,7 +760,7 @@ wheels = [
 [[package]]
 name = "earthcmap"
 version = "0.1.0"
-source = { git = "https://github.com/jhbravo/earthcmap.git#f1844c986b4a9622cac5c35d3ab2c2682aa1f290" }
+source = { git = "https://github.com/jhbravo/earthcmap.git#7aec07db060af47548afea2d97967ed63be3ac76" }
 dependencies = [
     { name = "matplotlib" },
 ]
