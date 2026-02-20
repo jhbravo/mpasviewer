@@ -62,7 +62,7 @@ Below are a few basic examples showing how to use **MPAS-Viewer** to load and vi
   Basic usage example showing how to load MPAS data and generate a simple plot.
 
 - **[01_projection.ipynb](examples/01_projection.ipynb)** 
-  Demonstrates map projections and how to visualize MPAS data in different coordinate systems.
+  How to visualize MPAS data in different projections.
 
 - **[02_static.ipynb](examples/02_static.ipynb)** 
   Visualization of standard MPAS invariant variables.
@@ -77,10 +77,10 @@ Below are a few basic examples showing how to use **MPAS-Viewer** to load and vi
   Example using WoFS data, including visualization of forecast output on the MPAS mesh.
 
 - **[06_graf15m.ipynb](examples/06_graf15m.ipynb)** 
-  Example demonstrating remote access to GRAF ZARR data with 15-minute forecast interval visualization.
+  remote access to GRAF ZARR data with 15-minute forecast interval visualization.
 
 - **[07_graf05m.ipynb](examples/07_graf05m.ipynb)** 
-  Example demonstrating remote access to GRAF ZARR data with 5-minute high-frequency precipitation forecast.
+  remote access to GRAF ZARR data with 5-minute high-frequency precipitation forecast.
 
 - **[08_out_ocean.ipynb](examples/08_out_ocean.ipynb)** 
   Example demonstrating visualization of MPAS-Ocean output.
@@ -96,7 +96,7 @@ Below are a few basic examples showing how to use **MPAS-Viewer** to load and vi
 
 ---
 
-### 📈 Example 1: Load and Plot a Variable
+### 🗺️ Basic usage 
 
 ```python
 # Initialize the main object by providing the mesh file (grid or static)
@@ -119,5 +119,5 @@ mpasd.rain_rate()
 dta = mpasd.load()
 
 # Plot a specific variable as a spatial map at a given time index
-mpasd.show(dta, var_name='refl10cm_max', time_index='2021-09-02T00')
+mpasd.show(dta, var_name='variable', time_index='yyyy-mm-ddTHH')
 ```
