@@ -82,6 +82,18 @@ Below are a few basic examples showing how to use **MPAS-Viewer** to load and vi
 - **[07_graf05m.ipynb](examples/07_graf05m.ipynb)** 
   Example demonstrating remote access to GRAF ZARR data with 5-minute high-frequency precipitation forecast.
 
+- **[08_out_ocean.ipynb](examples/08_out_ocean.ipynb)** 
+  Example demonstrating visualization of MPAS-Ocean output.
+
+- **[09_out_seaice.ipynb](examples/09_out_seaice.ipynb)** 
+  Visualization of MPAS-Seaiceoutputs.
+
+- **[10_out_chem.ipynb](examples/10_out_chem.ipynb)** 
+  Example how to visualize MPAS-Chem PM2.5 output.
+
+- **[11_out_mpas-jedi.ipynb](examples/11_out_mpas-jedi.ipynb)** 
+  Visualization of MPAS-JEDI output data.
+
 ---
 
 ### 📈 Example 1: Load and Plot a Variable
