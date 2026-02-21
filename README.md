@@ -91,8 +91,17 @@ Below are a few basic examples showing how to use **MPAS-Viewer** to load and vi
 - **[10_out_chem.ipynb](examples/10_out_chem.ipynb)** 
   Example how to visualize MPAS-Chem PM2.5 output.
 
-- **[11_out_mpas-jedi.ipynb](examples/11_out_mpas-jedi.ipynb)** 
-  Visualization of MPAS-JEDI output data.
+- **[11_out_mpas-jedi.ipynb](examples/11_out_mpas-jedi-diag.ipynb)** 
+  Visualization of MPAS-JEDI diag output fields.
+
+- **[12_out_mpas-jedi-out.ipynb](examples/12_out_mpas-jedi-out.ipynb)** 
+  Visualization of MPAS-JEDI mpasout output fields.
+
+- **[13_out_mpas-jedi-da_an.ipynb](examples/13_out_mpas-jedi-da_an.ipynb)** 
+  Visualization of MPAS-JEDI data assimilation an fields.
+
+- **[14_out_mpas-jedi-da_bg.ipynb](examples/14_out_mpas-jedi-da_bg.ipynb)** 
+  Visualization of MPAS-JEDI data assimilation bg fields.
 
 ---
 
