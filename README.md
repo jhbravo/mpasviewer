@@ -16,6 +16,13 @@ If you use this package in your research, please consider citing the paper.
 
 ---
 
+## 🥈 Award [![Award](https://img.shields.io/badge/Award-Silver-silver)](https://www.linkedin.com/posts/jhbravo_ams2026-activity-7430397403347972096-Khrb)
+
+This tool was selected as one of the award winners, with the presentation, **Python-based visualization of MPAS data in its native unstructured grid** at the Fifth Symposium on Community Modeling and Innovation, during the 106th Annual Meeting of the American Meteorological Society (AMS2026).  
+🔗 https://www.linkedin.com/posts/jhbravo_ams2026-activity-7430397403347972096-Khrb
+
+---
+
 ## 🎯 Key Features
 
 - ⚡ Fast rendering on native unstructured MPAS mesh

@@ -278,7 +278,8 @@ class scvtmesh:
                         # ini_time = [datetime.strptime(os.path.basename(f), 'diag.%Y-%m-%d_%H.%M.%S.nc') for f in allfls]
                         ini_time = [datetime.strptime(x.values.item().decode().strip(), '%Y-%m-%d_%H:%M:%S') for x in outgrid['xtime']]
                     except:
-                        ini_time = [ini_time[0].astype('datetime64[s]')]
+                        # ini_time = [ini_time[0].astype('datetime64[s]')]
+                        ini_time = [x.astype('datetime64[s]') for x in ini_time]
                     frstm0 = str(ini_time[0])
                 else:
                     frstm0 = str(ini_time[0].astype('datetime64[s]'))
@@ -329,7 +330,6 @@ class scvtmesh:
                 # print(vlevel)
                 if ftype in ["diag"] and vlevel in outgrid[vn].dims:
                     fdims = ["time",vlevel,"face"]
-            # print(vn, fdims)
 
             if vn in variable_attrs.keys():
                 vattrs = variable_attrs.get(vn, {})
