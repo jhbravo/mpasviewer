@@ -47,7 +47,11 @@ class scvtmesh:
         """Load the grid_file NetCDF file."""
         self.load_variables = load_variables
         
-        grid_base = xr.open_dataset(self.grid_file_path)
+        # grid_base = xr.open_dataset(self.grid_file_path)
+        try:
+            grid_base = xr.open_dataset(self.grid_file_path)
+        except ValueError:
+            grid_base = xr.open_dataset(self.grid_file_path, decode_times=False)
 
         nEdgesOnCell = grid_base['nEdgesOnCell']
         verticesOnCell = grid_base['verticesOnCell']
@@ -92,21 +96,26 @@ class scvtmesh:
         else:
             ftype = "diag"
             # if os.path.isfile(self.diag_list) and re.match(r".*diag\..*\.nc$", self.diag_list):
-            if os.path.isfile(self.diag_list) and re.match(r".*(diag|mpasout)\..*\.nc$", self.diag_list):
-                # print("read a single")
-                outgrid = xr.open_dataset(self.diag_list)
-            elif os.path.isdir(self.diag_list):
-                # print("this is to read a glob list")
-                allfls = sorted(glob(f"{self.diag_list}/diag*.nc"))
-                # outgrid = xr.open_mfdataset(allfls, decode_cf=True, mask_and_scale=False, combine='by_coords')
+            if isinstance(self.diag_list, list):
+                allfls = sorted(self.diag_list)
                 outgrid = xr.open_mfdataset(allfls, combine='nested', concat_dim='Time', decode_cf=True, mask_and_scale=False)
-            elif re.match(r"^s3://twc-graf-reforecast.*\.zarr/?$", self.diag_list):
-                mapper = fsspec.get_mapper(f"{self.diag_list}", anon=True)
-                outgrid = xr.open_zarr(mapper, consolidated=True)
-            elif os.path.isfile(self.diag_list) and self.diag_list.endswith(".nc"):
-                ### OCEAN
-                outgrid = xr.open_dataset(self.diag_list)
-                # print('This is for Ocean or ICE')
+            elif isinstance(self.diag_list, str):
+                if os.path.isfile(self.diag_list) and re.match(r".*(diag|mpasout)\..*\.nc$", self.diag_list):
+                    # print("read a single")
+                    outgrid = xr.open_dataset(self.diag_list)
+                elif os.path.isdir(self.diag_list):
+                    # print("this is to read a glob list")
+                    allfls = sorted(glob(f"{self.diag_list}/diag*.nc"))
+                    # outgrid = xr.open_mfdataset(allfls, decode_cf=True, mask_and_scale=False, combine='by_coords')
+                    outgrid = xr.open_mfdataset(allfls, combine='nested', concat_dim='Time', decode_cf=True, mask_and_scale=False)
+                
+                elif re.match(r"^s3://twc-graf-reforecast.*\.zarr/?$", self.diag_list):
+                    mapper = fsspec.get_mapper(f"{self.diag_list}", anon=True)
+                    outgrid = xr.open_zarr(mapper, consolidated=True)
+                elif os.path.isfile(self.diag_list) and self.diag_list.endswith(".nc"):
+                    ### OCEAN
+                    outgrid = xr.open_dataset(self.diag_list)
+                    # print('This is for Ocean or ICE')
             else:
                 print("not found or doesn't match expected formats")
 
@@ -524,170 +533,23 @@ class scvtmesh:
     
         return matching_indices
 
+    # def save(self, output_filename):
+    #     """Save the processed dataset as a NetCDF file."""
+    #     if self.ds is None:
+    #         raise ValueError("No dataset to save. Run load_grid_file() and add_optional_data() first.")
+        
+    #     todel = [x for x in self.ds.keys() if len(self.ds[x].shape) == 3]
+    #     for data_var in todel:
+    #         for h in self.ds["nPresLevels"].values:
+    #             var_name = f"{data_var}_{int(h)}hPa"  # Example: "temperature_500hPa"
+                
+    #             self.ds[var_name] = self.ds[data_var].sel(pres=h)
+    #             self.ds[var_name].attrs['long_name'] += f' to {h} hPa'
+    #         del self.ds[data_var]
+        
+    #     self.ds.to_netcdf(output_filename)
+    #     print(f"Saved processed dataset as {output_filename}.")
 
-    def cbar_adjust(self, cmap_name):
-        ### output color bars
-        if cmap_name in ['t2m','theta']:#,'temperature']:
-            cmap_name = "temp_ecmwf"
-        elif cmap_name in ['ssh']:
-            cmap_name = "noaa_sst"          
-        # elif cmap_name in ["rain_tndncy",'rainnc', 'rainc', 'precipw',] or "rain" in cmap_name:
-        elif cmap_name in ['precipw',] or "rain" in cmap_name or "prec_acc" in cmap_name:
-            cmap_name = "nwps_qpe"
-        elif cmap_name in ['apcp_bucket','conv_bucket','rain_bucket']:
-            cmap_name = "mrms_prec"
-        elif cmap_name in ['olrtoa']:
-            cmap_name = "cira_ir108"
-        elif "refl10cm" in cmap_name:
-            cmap_name = "mrms_cref"
-        elif "wind" in cmap_name:# or cmap_name in ["umeridional", "uzonal",] :
-            cmap_name = "wind_cira"
-        ### static color bars
-        elif cmap_name in ['ter']:
-            cmap_name = "ter"
-        elif cmap_name in ['isltyp']:
-            cmap_name = "soil_comet"
-        elif cmap_name in ['ivgtyp']:
-            cmap_name = "lalc"
-        elif cmap_name in ['landmask']:
-            cmap_name = "laoc"
-        else:
-            cmap_name = None
-
-        return cmap_name
-
-    def show_org(self, ds, var_name, time_index=None, crs=None, figsize=None):
-        """
-        Plot a PolyCollection for a given variable at a specific time index.
-        :param var_name: Name of the variable to plot.
-        :param time_index: Time index to visualize (default is 0).
-        """
-        if ds is None:
-            raise ValueError("Dataset not loaded. Run load_static() and add_optional_data() first.")
-        
-        if var_name not in ds.keys():
-            raise ValueError(f"Variable '{var_name}' not found in dataset.")
-            
-        dvar = ds[var_name]
-        ## #######
-        ndt1 = np.ma.masked_object(ds["face_nodes"].fillna(-1), -1).astype('int')
-        
-        lon1 = np.ma.take(ds['node_x'].data, ndt1)
-        lat1 = np.ma.take(ds['node_y'].data, ndt1)
-        
-        arr = np.ma.dstack((lon1, lat1))
-        
-        ## #######
-        lon_min, lon_max, lat_min, lat_max = np.ma.min(arr[:,:,0]), np.ma.max(arr[:,:,0]), np.ma.min(arr[:,:,1]), np.ma.max(arr[:,:,1])
-        if (lon_max >= 179.5 and lon_min <= -179.5):
-            clon = 0
-            clat = 0
-        else:
-            clon = (lon_min + lon_max) / 2
-            clat = (lat_min + lat_max) / 2
-        
-        if crs is None:
-            crs = ccrs.Orthographic(central_longitude=clon, central_latitude=clat)
-            # print(clon,clat)
-        
-        #################
-        if figsize is None:
-            figsize=(6.4, 4.8) ## this is the default size
-
-        fig, ax = plt.subplots(figsize=figsize, subplot_kw={'projection': crs})
-        plt.close(fig)
-        arr_nan = np.where(arr.mask, np.nan, arr.data)
-        
-        projected = ax.projection.transform_points(ccrs.PlateCarree(), arr_nan[:,:,0], arr_nan[:,:,1])
-        
-        arr2 = np.ma.array(projected[:,:,:2], mask=arr.mask, copy=False)
-        
-        crs_name = type(crs).__name__
-        # print(crs_name)
-        if crs_name not in ['Orthographic','Geostationary'] and (lon_max >= 179.5 and lon_min <= -179.5):
-            ################### This part is to identify the polygons at edges
-            row_max = arr2[:,:,0].max(axis=1)  # Max per row
-            row_min = arr2[:,:,0].min(axis=1)  # Min per row
-            row_dff = row_max - row_min
-            
-            digit_counts = np.floor(np.log10(row_dff.data)).astype(int) + 1
-            mask1 = (digit_counts>=digit_counts.max())
-            
-            idx = np.unique(np.where(mask1))
-            
-            arr2[idx] = np.nan
-            ###################
-        ###
-        if 'time' in dvar.coords:
-            num_steps = len(dvar['time'])  # Number of time steps
-            if time_index is None:
-                time_index = str(ds['time'].data.min().astype('datetime64[s]'))
-        else:
-            num_steps = 0
-            
-        if num_steps == 0:
-            vtme = "timeless"
-            values = dvar.values.flatten()
-        else:
-            vtme = str(dvar.sel(time=time_index)['time'].data.astype('datetime64[m]'))
-            values = dvar.sel(time=time_index).values.flatten()
-            # vtme = str(dvar.isel(time=time_index)['time'].data.astype('datetime64[m]'))
-            # values = dvar.isel(time=time_index).values.flatten()
-        ############################################ 
-        vnme = dvar.attrs.get('long_name', var_name)
-        
-        #### Get the appropiated colormap 
-        if var_name in ['indexToCellID','nEdgesOnCell','areaCell','meshDensity','cellQuality','gridSpacing']:
-            cmap = colormaps['Spectral'].resampled(24)
-        else:
-            cmap_name = self.cbar_adjust(var_name)
-            if "units" in dvar.attrs.keys():
-                cmap, norm = escmap(cmap_name, units = dvar.attrs['units'])
-            else:
-                cmap, norm = escmap(cmap_name)
-        
-        coll = PolyCollection(arr2)
-        ### Arrray values
-        coll.set_array(values)
-        ### Colors 
-        coll.set_cmap(cmap)
-        coll.set_edgecolor('face')
-        if 'norm' in locals():
-            coll.set_norm(norm)
-        
-        # --- Create Figure & Axis ---
-        fig, ax = plt.subplots(figsize=figsize, subplot_kw={'projection': crs})
-        ax.add_collection(coll)
-        ax.autoscale_view()
-        
-        ax.set_xlabel("Longitude")
-        ax.set_ylabel("Latitude")
-        ax.set_title(vnme+f"\nat {vtme}")
-    
-        # --- limits ---
-        ax.coastlines(linewidth=0.5)
-        if (lon_max >= 179.5 and lon_min <= -179.5):
-            ax.set_global()
-        else:            
-            ax.set_extent([lon_min, lon_max, lat_min, lat_max])
-            
-        gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True, linewidth=0.7, color='gray', alpha=0.5, linestyle='--', dms=True)
-        gl.top_labels = False
-        gl.right_labels = False
-    
-        # --- Color Bar ---
-        pos = ax.get_position()
-        # Adding colorbar aligned with the map's height
-        cbar_width = 0.02
-        cbar_padding = 0.01
-        cbar_ax = fig.add_axes([
-            pos.x1 + cbar_padding, # left
-            pos.y0,                # bottom
-            cbar_width,            # width
-            pos.height             # height (match the map!)
-        ])
-        
-        fig.colorbar(coll, cax=cbar_ax, label=var_name)
 
 ###############################3
     def get_struck(self, ds):
@@ -855,6 +717,12 @@ class scvtmesh:
         # coll = collection(ds, var_name, time_index=time_index, crs=crs, figsize=figsize)
         # --- Create Figure & Axis ---
         fig, ax = plt.subplots(figsize=figsize, subplot_kw={'projection': coll.crs})
+        # if ax is None:
+        #     fig, ax = plt.subplots(figsize=figsize, subplot_kw={'projection': coll.crs})
+        # else:
+        #     fig = ax.figure
+        # ax.clear()
+
         ax.add_collection(coll)
         ax.autoscale_view()
         
@@ -888,3 +756,241 @@ class scvtmesh:
         ])
         
         fig.colorbar(coll, cax=cbar_ax, label=var_name)
+
+    ### Function to get a list of thredds files
+    def get_thredds_list(url_thredds, date_start=None, date_end=None):
+        fs = fsspec.filesystem("https")
+        files_metadata = fs.ls(url_thredds)
+        
+        file_urls = [file["name"] for file in files_metadata]
+        
+        file_nms = [os.path.basename(f) for f in file_urls] 
+        
+        base_url = os.path.dirname(url_thredds).replace("catalog","dodsC")
+        # base_url = "_"
+        
+        pattern = re.compile(r"^diag\..*\.nc$")
+        names = []
+        for rnme in file_nms:  
+            if pattern.match(rnme):
+                dt = datetime.strptime(rnme,"diag.%Y-%m-%d_%H.%M.%S.nc",)
+                
+                if date_start is not None and dt < date_start:
+                    continue
+                
+                if date_end is not None and dt > date_end:
+                    continue
+                names.append(f"{base_url}/{rnme}")
+        return names
+
+    # def animate(self, ds, var_name, level=None, time_index=None, crs=None, figsize=None, cmap=None, norm=None, vmin=None, vmax=None):
+    #     coll = self.collection(ds, var_name, level=level, time_index=time_index, crs=crs, figsize=figsize, cmap=cmap, norm=norm, vmin=vmin, vmax=vmax)
+        
+    #     # --- Create Figure & Axis ---
+    #     fig, ax = plt.subplots(figsize=figsize, subplot_kw={'projection': coll.crs})
+        
+    #     ax.add_collection(coll)
+    #     ax.autoscale_view()
+        
+    #     ax.set_xlabel("Longitude")
+    #     ax.set_ylabel("Latitude")
+    #     ax.set_title(f"{coll.vname}\n", loc='left')
+    #     ax.set_title(f"\n{coll.stime}", loc='right')
+    
+    #     # --- limits ---
+    #     ax.coastlines(linewidth=0.5)
+    #     if (coll.limits[1] >= 179.5 and coll.limits[0] <= -179.5): #(lon_max >= 179.5 and lon_min <= -179.5):
+    #         ax.set_global()
+    #     else:
+    #         ax.set_extent(coll.limits, crs=ccrs.PlateCarree())
+    #         # ax.set_extent([lon_min, lon_max, lat_min, lat_max])
+            
+    #     gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True, linewidth=0.7, color='gray', alpha=0.5, linestyle='--', dms=True)
+    #     gl.top_labels = False
+    #     gl.right_labels = False
+    
+    #     # --- Color Bar ---
+    #     pos = ax.get_position()
+    #     # Adding colorbar aligned with the map's height
+    #     cbar_width = 0.02
+    #     cbar_padding = 0.01
+    #     cbar_ax = fig.add_axes([
+    #         pos.x1 + cbar_padding, # left
+    #         pos.y0,                # bottom
+    #         cbar_width,            # width
+    #         pos.height             # height (match the map!)
+    #     ])
+        
+    #     fig.colorbar(coll, cax=cbar_ax, label=var_name)
+
+
+
+
+
+#####################################
+###            To delete
+#####################################
+
+    # def cbar_adjust(self, cmap_name):
+    #     ### output color bars
+    #     if cmap_name in ['t2m','theta']:#,'temperature']:
+    #         cmap_name = "temp_ecmwf"
+    #     elif cmap_name in ['ssh']:
+    #         cmap_name = "noaa_sst"          
+    #     # elif cmap_name in ["rain_tndncy",'rainnc', 'rainc', 'precipw',] or "rain" in cmap_name:
+    #     elif cmap_name in ['precipw',] or "rain" in cmap_name or "prec_acc" in cmap_name:
+    #         cmap_name = "nwps_qpe"
+    #     elif cmap_name in ['apcp_bucket','conv_bucket','rain_bucket']:
+    #         cmap_name = "mrms_prec"
+    #     elif cmap_name in ['olrtoa']:
+    #         cmap_name = "cira_ir108"
+    #     elif "refl10cm" in cmap_name:
+    #         cmap_name = "mrms_cref"
+    #     elif "wind" in cmap_name:# or cmap_name in ["umeridional", "uzonal",] :
+    #         cmap_name = "wind_cira"
+    #     ### static color bars
+    #     elif cmap_name in ['ter']:
+    #         cmap_name = "ter"
+    #     elif cmap_name in ['isltyp']:
+    #         cmap_name = "soil_comet"
+    #     elif cmap_name in ['ivgtyp']:
+    #         cmap_name = "lalc"
+    #     elif cmap_name in ['landmask']:
+    #         cmap_name = "laoc"
+    #     else:
+    #         cmap_name = None
+
+    #     return cmap_name
+
+    # def show_org(self, ds, var_name, time_index=None, crs=None, figsize=None):
+    #     """
+    #     Plot a PolyCollection for a given variable at a specific time index.
+    #     :param var_name: Name of the variable to plot.
+    #     :param time_index: Time index to visualize (default is 0).
+    #     """
+    #     if ds is None:
+    #         raise ValueError("Dataset not loaded. Run load_static() and add_optional_data() first.")
+        
+    #     if var_name not in ds.keys():
+    #         raise ValueError(f"Variable '{var_name}' not found in dataset.")
+            
+    #     dvar = ds[var_name]
+    #     ## #######
+    #     ndt1 = np.ma.masked_object(ds["face_nodes"].fillna(-1), -1).astype('int')
+        
+    #     lon1 = np.ma.take(ds['node_x'].data, ndt1)
+    #     lat1 = np.ma.take(ds['node_y'].data, ndt1)
+        
+    #     arr = np.ma.dstack((lon1, lat1))
+        
+    #     ## #######
+    #     lon_min, lon_max, lat_min, lat_max = np.ma.min(arr[:,:,0]), np.ma.max(arr[:,:,0]), np.ma.min(arr[:,:,1]), np.ma.max(arr[:,:,1])
+    #     if (lon_max >= 179.5 and lon_min <= -179.5):
+    #         clon = 0
+    #         clat = 0
+    #     else:
+    #         clon = (lon_min + lon_max) / 2
+    #         clat = (lat_min + lat_max) / 2
+        
+    #     if crs is None:
+    #         crs = ccrs.Orthographic(central_longitude=clon, central_latitude=clat)
+    #         # print(clon,clat)
+        
+    #     #################
+    #     if figsize is None:
+    #         figsize=(6.4, 4.8) ## this is the default size
+
+    #     fig, ax = plt.subplots(figsize=figsize, subplot_kw={'projection': crs})
+    #     plt.close(fig)
+    #     arr_nan = np.where(arr.mask, np.nan, arr.data)
+        
+    #     projected = ax.projection.transform_points(ccrs.PlateCarree(), arr_nan[:,:,0], arr_nan[:,:,1])
+        
+    #     arr2 = np.ma.array(projected[:,:,:2], mask=arr.mask, copy=False)
+        
+    #     crs_name = type(crs).__name__
+    #     # print(crs_name)
+    #     if crs_name not in ['Orthographic','Geostationary'] and (lon_max >= 179.5 and lon_min <= -179.5):
+    #         ################### This part is to identify the polygons at edges
+    #         row_max = arr2[:,:,0].max(axis=1)  # Max per row
+    #         row_min = arr2[:,:,0].min(axis=1)  # Min per row
+    #         row_dff = row_max - row_min
+            
+    #         digit_counts = np.floor(np.log10(row_dff.data)).astype(int) + 1
+    #         mask1 = (digit_counts>=digit_counts.max())
+            
+    #         idx = np.unique(np.where(mask1))
+            
+    #         arr2[idx] = np.nan
+    #         ###################
+    #     ###
+    #     if 'time' in dvar.coords:
+    #         num_steps = len(dvar['time'])  # Number of time steps
+    #         if time_index is None:
+    #             time_index = str(ds['time'].data.min().astype('datetime64[s]'))
+    #     else:
+    #         num_steps = 0
+            
+    #     if num_steps == 0:
+    #         vtme = "timeless"
+    #         values = dvar.values.flatten()
+    #     else:
+    #         vtme = str(dvar.sel(time=time_index)['time'].data.astype('datetime64[m]'))
+    #         values = dvar.sel(time=time_index).values.flatten()
+    #         # vtme = str(dvar.isel(time=time_index)['time'].data.astype('datetime64[m]'))
+    #         # values = dvar.isel(time=time_index).values.flatten()
+    #     ############################################ 
+    #     vnme = dvar.attrs.get('long_name', var_name)
+        
+    #     #### Get the appropiated colormap 
+    #     if var_name in ['indexToCellID','nEdgesOnCell','areaCell','meshDensity','cellQuality','gridSpacing']:
+    #         cmap = colormaps['Spectral'].resampled(24)
+    #     else:
+    #         cmap_name = self.cbar_adjust(var_name)
+    #         if "units" in dvar.attrs.keys():
+    #             cmap, norm = escmap(cmap_name, units = dvar.attrs['units'])
+    #         else:
+    #             cmap, norm = escmap(cmap_name)
+        
+    #     coll = PolyCollection(arr2)
+    #     ### Arrray values
+    #     coll.set_array(values)
+    #     ### Colors 
+    #     coll.set_cmap(cmap)
+    #     coll.set_edgecolor('face')
+    #     if 'norm' in locals():
+    #         coll.set_norm(norm)
+        
+    #     # --- Create Figure & Axis ---
+    #     fig, ax = plt.subplots(figsize=figsize, subplot_kw={'projection': crs})
+    #     ax.add_collection(coll)
+    #     ax.autoscale_view()
+        
+    #     ax.set_xlabel("Longitude")
+    #     ax.set_ylabel("Latitude")
+    #     ax.set_title(vnme+f"\nat {vtme}")
+    
+    #     # --- limits ---
+    #     ax.coastlines(linewidth=0.5)
+    #     if (lon_max >= 179.5 and lon_min <= -179.5):
+    #         ax.set_global()
+    #     else:            
+    #         ax.set_extent([lon_min, lon_max, lat_min, lat_max])
+            
+    #     gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True, linewidth=0.7, color='gray', alpha=0.5, linestyle='--', dms=True)
+    #     gl.top_labels = False
+    #     gl.right_labels = False
+    
+    #     # --- Color Bar ---
+    #     pos = ax.get_position()
+    #     # Adding colorbar aligned with the map's height
+    #     cbar_width = 0.02
+    #     cbar_padding = 0.01
+    #     cbar_ax = fig.add_axes([
+    #         pos.x1 + cbar_padding, # left
+    #         pos.y0,                # bottom
+    #         cbar_width,            # width
+    #         pos.height             # height (match the map!)
+    #     ])
+        
+    #     fig.colorbar(coll, cax=cbar_ax, label=var_name)
