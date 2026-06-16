@@ -75,7 +75,7 @@ class scvtmesh:
         latEdge = mpas_rad2deg(grid_base, 'latEdge')
         lonEdge = mpas_rad2deg(grid_base, 'lonEdge')
 
-        mask = np.zeros_like(verticesOnCell.data, dtype=int)
+        mask = np.zeros_like(verticesOnCell.data, dtype = np.int32)
         unique_values = np.unique(nEdgesOnCell.data)
 
         for n in unique_values:
@@ -209,26 +209,47 @@ class scvtmesh:
                          'date_created': tstr,
                          'date_modified': tstr,}
         
-        self.ds["mesh2d"] = int()
-        self.ds["mesh2d"].attrs = {
-            "cf_role":                "mesh_topology",
-            "long_name":              "Topology data of 2D mesh",
-            "topology_dimension":     2,
-            ######################### 
-            "node_coordinates":       "node_x node_y",
-            "node_dimension":         "node", 
-            ######################### 
-            "edge_node_connectivity": "edge_nodes",
-            "edge_dimension":         "edge", 
-            "edge_coordinates":       "edge_x edge_y",
-            ######################### 
-            "face_node_connectivity": "face_nodes",
-            "face_dimension":         "face",
-            "face_coordinates":       "face_x face_y",        
-        }
-        
-        self.ds['projected_coordinate_system'] = int()  # Create an empty variable for coordinate reference system (CRS)
-        dprj = {'name': 'latitude_longitude',
+        self.ds["mesh2d"] = xr.DataArray(
+            np.int32(0),
+            attrs={
+                "cf_role":                "mesh_topology",
+                "long_name":              "Topology data of 2D mesh",
+                "topology_dimension":     2,
+                ######################### 
+                "node_coordinates":       "node_x node_y",
+                "node_dimension":         "node", 
+                ######################### 
+                "edge_node_connectivity": "edge_nodes",
+                "edge_dimension":         "edge", 
+                "edge_coordinates":       "edge_x edge_y",
+                ######################### 
+                "face_node_connectivity": "face_nodes",
+                "face_dimension":         "face",
+                "face_coordinates":       "face_x face_y",   
+            }
+        )
+
+        # self.ds["mesh2d"] = int()
+        # self.ds["mesh2d"].attrs = {
+        #     "cf_role":                "mesh_topology",
+        #     "long_name":              "Topology data of 2D mesh",
+        #     "topology_dimension":     2,
+        #     ######################### 
+        #     "node_coordinates":       "node_x node_y",
+        #     "node_dimension":         "node", 
+        #     ######################### 
+        #     "edge_node_connectivity": "edge_nodes",
+        #     "edge_dimension":         "edge", 
+        #     "edge_coordinates":       "edge_x edge_y",
+        #     ######################### 
+        #     "face_node_connectivity": "face_nodes",
+        #     "face_dimension":         "face",
+        #     "face_coordinates":       "face_x face_y",        
+        # }
+
+        self.ds["projected_coordinate_system"] = xr.DataArray(
+            np.int32(0),
+            attrs={'name': 'latitude_longitude',
                 'epsg': 4326,
                 'grid_mapping_name': 'latitude_longitude',
                 'semi_major_axis': 6378137.0,
@@ -241,7 +262,23 @@ class scvtmesh:
                 'horizontal_datum_name': 'World Geodetic System 1984',
                 'EPSG_code': 'EPSG:4326',
                 'proj4_params': '+proj=longlat +datum=WGS84 +no_defs' }
-        self.ds['projected_coordinate_system'].attrs = dprj
+        )
+
+        # self.ds['projected_coordinate_system'] = int()  # Create an empty variable for coordinate reference system (CRS)
+        # dprj = {'name': 'latitude_longitude',
+        #         'epsg': 4326,
+        #         'grid_mapping_name': 'latitude_longitude',
+        #         'semi_major_axis': 6378137.0,
+        #         'semi_minor_axis': 6356752.314245179,
+        #         'inverse_flattening': 298.257223563,
+        #         'reference_ellipsoid_name': 'WGS 84',
+        #         'longitude_of_prime_meridian': 0.0,
+        #         'prime_meridian_name': 'Greenwich',
+        #         'geographic_crs_name': 'WGS 84',
+        #         'horizontal_datum_name': 'World Geodetic System 1984',
+        #         'EPSG_code': 'EPSG:4326',
+        #         'proj4_params': '+proj=longlat +datum=WGS84 +no_defs' }
+        # self.ds['projected_coordinate_system'].attrs = dprj
         
         self.ds = self.ds.assign_coords(
             node_x = ("node", lonVertex.data),
@@ -756,6 +793,7 @@ class scvtmesh:
         ])
         
         fig.colorbar(coll, cax=cbar_ax, label=var_name)
+        ax.set_position(pos)
 
     ### Function to get a list of thredds files
     def get_thredds_list(url_thredds, date_start=None, date_end=None):
