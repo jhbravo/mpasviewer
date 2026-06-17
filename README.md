@@ -23,6 +23,16 @@ This tool was selected as one of the award winners, with the presentation, **Pyt
 
 ---
 
+## 📖 Project Pythia Cookbook
+
+A dedicated **Project Pythia Cookbook** is available for MPAS-Viewer, featuring interactive tutorials and reproducible examples that demonstrate how to visualize and analyze MPAS data using the library.
+
+The cookbook serves as a practical learning resource for both new and experienced users.
+
+🔗 https://github.com/ProjectPythia/mpasviewer-cookbook
+
+---
+
 ## 🎯 Key Features
 
 - ⚡ Fast rendering on native unstructured MPAS mesh
@@ -55,6 +65,7 @@ To use **MPAS-Viewer**, you’ll need the following Python packages:
 - Python **3.10+** [`xarray`](https://docs.xarray.dev/) [`dask`](https://www.dask.org/) [`numpy`](https://numpy.org/) [`matplotlib`](https://matplotlib.org/) [`cartopy`](https://scitools.org.uk/cartopy/docs/latest/)
 
 ### Optional:
+
 - [`earthcmap`](https://github.com/jhbravo/earthcmap) — common colormaps for consistent and appropriate visualization
 - [`fsspec`](https://filesystem-spec.readthedocs.io/en/latest/) — abstract file system layer (e.g. S3, GCS, HTTPS)
 - [`zarr`](https://zarr.readthedocs.io/en/stable/) — for chunked, compressed, cloud-optimized data
@@ -63,56 +74,69 @@ To use **MPAS-Viewer**, you’ll need the following Python packages:
 
 ## 🌍 🌎 🌏 Examples of Use
 
-Below are a few basic examples showing how to use **MPAS-Viewer** to load and visualize MPAS data, demonstrating different capabilities. To help you get started with MPAS-Viewer, we provide sample MPAS-A datasets that you can download from the following HydroShare repository [![Dataset](https://img.shields.io/badge/Dataset-HydroShare-blue)](https://www.hydroshare.org/resource/6be754bf29cb488b815810c35f3f0ac9/):
+To become familiar with MPAS-Viewer, we recommend starting with the following notebook, which introduces the main features and general workflow of the tool:
 
-- **[00_general_use.ipynb](examples/00_geneal_use.ipynb)** 
+- **[general_use.ipynb](examples/00_geneal_use.ipynb)**
   Basic usage example showing how to load MPAS data and generate a simple plot.
 
-- **[01_projection.ipynb](examples/01_projection.ipynb)** 
+If you prefer to explore MPAS-Viewer without installing any software locally—or if you do not have access to MPAS datasets—you can use the following Google Colab notebooks. These examples retrieve data remotely, allowing you to experiment with the tool directly in your browser:
+
+- **[remote_static_global](examples/16_remote_static_global.ipynb)**
+  Visualization of MPAS global quasi-uniform mesh (480 km) datasets from THREDDS servers.
+
+- **[remote_out_nyc](examples/17_remote_out_nyc.ipynb)**
+  Visualization of MPAS local quasi-uniform mesh (3 km) datasets from THREDDS servers.
+
+- **[remote_out_PR](examples/18_remote_out_PR.ipynb)**
+  Visualization of MPAS regional variable-resolution mesh (15–3 km) datasets from THREDDS servers.
+
+For users interested in working with different types of datasets, additional examples are provided below. Although the underlying data are not publicly accessible, these notebooks demonstrate the use of MPAS-Viewer with a variety of model outputs, including MPAS, MPAS-JEDI, CheMPAS, MPAS-Ocean (MPAS-O), MPAS-SeaIce, and other MPAS cores.
+
+- **[projection](examples/01_projection.ipynb)**
   How to visualize MPAS data in different projections.
 
-- **[02_static.ipynb](examples/02_static.ipynb)** 
+- **[static](examples/02_static.ipynb)**
   Visualization of standard MPAS invariant variables.
 
-- **[03_out.ipynb](examples/03_out.ipynb)** 
+- **[out_diag](examples/03_out.ipynb)**
   Visualization of standard MPAS output variables.
 
-- **[04_widget.ipynb](examples/04_widget.ipynb)** 
+- **[widget](examples/04_widget.ipynb)**
   Interactive visualization using widgets for dynamic variable and time selection.
 
-- **[05_out_wofs.ipynb](examples/05_out_wofs.ipynb)** 
+- **[out_wofs](examples/05_out_wofs.ipynb)**
   Example using WoFS data, including visualization of forecast output on the MPAS mesh.
 
-- **[06_graf15m.ipynb](examples/06_graf15m.ipynb)** 
+- **[graf15m](examples/06_graf15m.ipynb)**
   remote access to GRAF ZARR data with 15-minute forecast interval visualization.
 
-- **[07_graf05m.ipynb](examples/07_graf05m.ipynb)** 
+- **[graf05m](examples/07_graf05m.ipynb)**
   remote access to GRAF ZARR data with 5-minute high-frequency precipitation forecast.
 
-- **[08_out_ocean.ipynb](examples/08_out_ocean.ipynb)** 
+- **[out_ocean](examples/08_out_ocean.ipynb)**
   Example demonstrating visualization of MPAS-Ocean output.
 
-- **[09_out_seaice.ipynb](examples/09_out_seaice.ipynb)** 
-  Visualization of MPAS-Seaiceoutputs.
+- **[out_seaice](examples/09_out_seaice.ipynb)**
+  Visualization of MPAS-Seaice outputs.
 
-- **[10_out_chem.ipynb](examples/10_out_chem.ipynb)** 
-  Example how to visualize MPAS-Chem PM2.5 output.
+- **[out_chem](examples/10_out_chem.ipynb)**
+  Example how to visualize CheMPAS PM2.5 output.
 
-- **[11_out_mpas-jedi.ipynb](examples/11_out_mpas-jedi-diag.ipynb)** 
+- **[out_mpas-jedi](examples/11_out_mpas-jedi-diag.ipynb)**
   Visualization of MPAS-JEDI diag output fields.
 
-- **[12_out_mpas-jedi-out.ipynb](examples/12_out_mpas-jedi-out.ipynb)** 
+- **[out_mpas-jedi-out](examples/12_out_mpas-jedi-out.ipynb)**
   Visualization of MPAS-JEDI mpasout output fields.
 
-- **[13_out_mpas-jedi-da_an.ipynb](examples/13_out_mpas-jedi-da_an.ipynb)** 
+- **[out_mpas-jedi-da_an](examples/13_out_mpas-jedi-da_an.ipynb)**
   Visualization of MPAS-JEDI data assimilation an fields.
 
-- **[14_out_mpas-jedi-da_bg.ipynb](examples/14_out_mpas-jedi-da_bg.ipynb)** 
+- **[out_mpas-jedi-da_bg](examples/14_out_mpas-jedi-da_bg.ipynb)**
   Visualization of MPAS-JEDI data assimilation bg fields.
 
 ---
 
-### 🗺️ Basic usage 
+### 🗺️ Basic usage
 
 ```python
 # Initialize the main object by providing the mesh file (grid or static)
@@ -120,7 +144,7 @@ Below are a few basic examples showing how to use **MPAS-Viewer** to load and vi
 from mpasviewer import scvtmesh
 
 mpasd = scvtmesh(
-    grid_file='/path/to/some/file.grid.nc', 
+    grid_file='/path/to/some/file.grid.nc',
     diag_list='/path/to/some/list/of/files/diag'
 )
 
