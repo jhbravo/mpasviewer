@@ -748,6 +748,16 @@ class scvtmesh:
         coll.stime = vtme
         return coll
 
+    def in_jupyter(self):
+        try:
+            from IPython import get_ipython
+            shell = get_ipython().__class__.__name__
+            if shell in ["ZMQInteractiveShell"]:
+                return True
+            else:
+                return False
+        except:
+            return False
 
     def show(self, ds, var_name, level=None, time_index=None, crs=None, figsize=None, cmap=None, norm=None, vmin=None, vmax=None):
         coll = self.collection(ds, var_name, level=level, time_index=time_index, crs=crs, figsize=figsize, cmap=cmap, norm=norm, vmin=vmin, vmax=vmax)
@@ -793,7 +803,23 @@ class scvtmesh:
         ])
         
         fig.colorbar(coll, cax=cbar_ax, label=var_name)
-        ax.set_position(pos)
+    
+        #### Creating a fake axes box
+        #### for some reason the figure not work on 2i2c.cloud jupyert env
+        #### and it in cessary to create a new box
+        
+        if self.in_jupyter():
+            
+            fig.canvas.draw()  # important!
+            bbox = fig.get_tightbbox(fig.canvas.get_renderer())
+
+            fake_ax = fig.add_axes([
+                bbox.x0 * 0.01, # left
+                bbox.y0 * 0.1,  # bottom
+                pos.width,       # width
+                pos.height       # height (match the map!)
+            ])
+            fake_ax.set_axis_off()
 
     ### Function to get a list of thredds files
     def get_thredds_list(url_thredds, date_start=None, date_end=None):
