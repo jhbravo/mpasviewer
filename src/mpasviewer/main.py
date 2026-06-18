@@ -98,7 +98,11 @@ class scvtmesh:
             # if os.path.isfile(self.diag_list) and re.match(r".*diag\..*\.nc$", self.diag_list):
             if isinstance(self.diag_list, list):
                 allfls = sorted(self.diag_list)
-                outgrid = xr.open_mfdataset(allfls, combine='nested', concat_dim='Time', decode_cf=True, mask_and_scale=False)
+                # Use chunks={} for lazy/Dask loading when any URL is remote (HTTP/OPeNDAP)
+                remote = any(f.startswith("http") for f in allfls)
+                outgrid = xr.open_mfdataset(allfls, combine='nested', concat_dim='Time',
+                                            decode_cf=True, mask_and_scale=False,
+                                            **({"chunks": {}} if remote else {}))
             elif isinstance(self.diag_list, str):
                 if os.path.isfile(self.diag_list) and re.match(r".*(diag|mpasout)\..*\.nc$", self.diag_list):
                     # print("read a single")
@@ -112,6 +116,8 @@ class scvtmesh:
                 elif re.match(r"^s3://twc-graf-reforecast.*\.zarr/?$", self.diag_list):
                     mapper = fsspec.get_mapper(f"{self.diag_list}", anon=True)
                     outgrid = xr.open_zarr(mapper, consolidated=True)
+                elif re.match(r"^https?://", self.diag_list) and self.diag_list.endswith(".nc"):
+                    outgrid = xr.open_dataset(self.diag_list, chunks={})
                 elif os.path.isfile(self.diag_list) and self.diag_list.endswith(".nc"):
                     ### OCEAN
                     outgrid = xr.open_dataset(self.diag_list)
@@ -744,18 +750,18 @@ class scvtmesh:
         gl.right_labels = False
     
         # --- Color Bar ---
-        pos = ax.get_position()
-        # Adding colorbar aligned with the map's height
-        cbar_width = 0.02
-        cbar_padding = 0.01
-        cbar_ax = fig.add_axes([
-            pos.x1 + cbar_padding, # left
-            pos.y0,                # bottom
-            cbar_width,            # width
-            pos.height             # height (match the map!)
-        ])
-        
-        fig.colorbar(coll, cax=cbar_ax, label=var_name)
+        fig.colorbar(coll, ax=ax, shrink=0.8, pad=0.02, label=var_name)
+
+        # Workaround: Cartopy GeoAxes.get_tightbbox() returns nan/inf, which
+        # causes Jupyter's bbox_inches='tight' to crop the map out. Patch the
+        # axes to fall back to its window extent for tight bbox calculation.
+        _original_get_tightbbox = ax.get_tightbbox
+        def _patched_get_tightbbox(renderer=None, **kwargs):
+            bbox = _original_get_tightbbox(renderer=renderer, **kwargs)
+            if bbox is None or not np.isfinite(bbox.bounds).all():
+                return ax.get_window_extent(renderer)
+            return bbox
+        ax.get_tightbbox = _patched_get_tightbbox
 
     ### Function to get a list of thredds files
     def get_thredds_list(url_thredds, date_start=None, date_end=None):
